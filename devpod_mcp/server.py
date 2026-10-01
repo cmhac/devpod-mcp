@@ -124,8 +124,8 @@ def _list_workspaces() -> list[dict[str, Any]]:
         raise RuntimeError(f"`devpod list` failed:\n{combined.strip()}")
     try:
         return json.loads(proc.stdout or "[]")
-    except json.JSONDecodeError:
-        raise RuntimeError(f"Could not parse `devpod list` output:\n{proc.stdout}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Could not parse `devpod list` output:\n{proc.stdout}") from exc
 
 
 def _workspace_names() -> list[str]:
