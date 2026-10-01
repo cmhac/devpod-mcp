@@ -46,19 +46,36 @@ instead of an opaque failure:
 - Valid AWS credentials for the devpod provider (refresh with `ne-okta`).
 - Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/).
 
-## Run
+## Install
+
+The server is distributed from GitHub and run with
+[`uvx`](https://docs.astral.sh/uv/) — no clone or manual install needed. `uvx`
+fetches the repo, builds it, caches the result, and runs the `devpod-mcp` entry
+point:
 
 ```bash
-uv run devpod-mcp
+uvx --from git+https://github.com/cmhac/devpod-mcp devpod-mcp
+```
+
+Pin to a released tag for reproducibility (recommended):
+
+```bash
+uvx --from git+https://github.com/cmhac/devpod-mcp@v0.1.0 devpod-mcp
+```
+
+To pull the latest commit on `main` after it has moved, add `--refresh`:
+
+```bash
+uvx --refresh --from git+https://github.com/cmhac/devpod-mcp devpod-mcp
 ```
 
 The server speaks MCP over stdio.
 
 ## Register with Kiro
 
-Add to `~/.kiro/crew/mcp.json` (`mcpServers`). **Important:** the server must
-inherit your interactive shell environment so it can find `devpod` and your AWS
-creds — launch it via a login shell:
+Add to `~/.kiro/crew/mcp.json` under `mcpServers`. **Important:** the server
+must inherit your interactive shell environment so it can find `devpod` and your
+AWS creds — launch it via a **login shell**:
 
 ```json
 {
@@ -67,11 +84,26 @@ creds — launch it via a login shell:
       "command": "/bin/zsh",
       "args": [
         "-l", "-c",
-        "uv --directory /Users/hackerc/tools/devpod-mcp run devpod-mcp"
+        "uvx --from git+https://github.com/cmhac/devpod-mcp@v0.1.0 devpod-mcp"
       ]
     }
   }
 }
+```
+
+(Use your own login shell if not zsh, e.g. `/bin/bash -l -c`.)
+
+## Local development
+
+Clone and run from source with [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/cmhac/devpod-mcp
+cd devpod-mcp
+uv sync
+uv run devpod-mcp          # run the server
+pre-commit install         # enable lint/format/type hooks
+pre-commit run --all-files # ruff check + ruff format + ty
 ```
 
 ## Configuration (env, all optional)
@@ -82,3 +114,42 @@ creds — launch it via a login shell:
 | `DEVPOD_CONTEXT` | CLI default | Pass `--context`. |
 | `DEVPOD_PROVIDER` | CLI default | Pass `--provider`. |
 | `DEVPOD_AWS_AUTH_COMMAND` | `ne-okta` | Command the user is told to run to refresh AWS auth. |
+
+## CI
+
+Every pull request and push to `main` runs `.github/workflows/ci.yml`:
+
+- `ruff check` — lint
+- `ruff format --check` — formatting
+- `ty check` — type check
+- `uv build` + an import smoke test of the entry point
+
+The same checks run locally via the pre-commit hooks, so a clean
+`pre-commit run --all-files` should mean a green CI.
+
+## Versioning & releases
+
+Versioning follows [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`). The
+single source of truth is the `version` field in `pyproject.toml`, and each
+release is a matching git tag `vX.Y.Z`.
+
+To cut a release:
+
+1. Bump the version: `uv version <new-version>` (edits `pyproject.toml`), or
+   edit the field by hand.
+2. Commit the bump: `git commit -am "Release vX.Y.Z"`.
+3. Tag and push:
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin main vX.Y.Z
+   ```
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which **verifies
+the tag matches the `pyproject.toml` version** (failing the release if they
+drift), builds the sdist + wheel, and publishes a GitHub release with
+auto-generated notes and the build artifacts attached.
+
+Consumers pin to a tag in their install command
+(`uvx --from git+https://github.com/cmhac/devpod-mcp@vX.Y.Z devpod-mcp`), so a
+tagged release is what makes a version reproducibly installable.
